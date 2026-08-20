@@ -1,0 +1,14 @@
+{
+  "name": "iNews — le notizie, senza il rumore",
+  "short_name": "iNews",
+  "description": "Lettore RSS con dizionario personalizzabile per nascondere le notizie ansiogene o acchiappa-click.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0c0e12",
+  "theme_color": "#0c0e12",
+  "lang": "it",
+  "icons": [
+    { "src": "./assets/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>iNews — le notizie, senza il rumore</title>
+<meta name="description" content="Lettore RSS che nasconde le notizie ansiogene o acchiappa-click in base a un dizionario personalizzabile. Nessun account, nessun server.">
+<meta name="theme-color" content="#0e1013">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./assets/icons/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap" rel="stylesheet">
+<script>
+  /* Applica il tema prima del primo disegno: niente lampo bianco all'avvio. */
+  try {
+    const saved = JSON.parse(localStorage.getItem('inews:v1:settings') || '{}');
+    const mode = (!saved.theme || saved.theme === 'auto')
+      ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+      : saved.theme;
+    document.documentElement.dataset.theme = mode;
+  } catch (e) {}
+</script>
+<link rel="stylesheet" href="./assets/css/style.css">
+</head>
+<body>
+
+<a class="skip-link" href="#main">Vai al contenuto</a>
+
+<header class="topbar">
+  <div class="topbar__inner">
+    <div class="brand">
+      <span class="brand__mark" aria-hidden="true">i</span>
+      <span class="brand__name">News</span>
+    </div>
+
+    <div class="search">
+      <svg class="search__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 21l-4.3-4.3M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16Z"/></svg>
+      <input id="search" type="search" placeholder="Cerca fra le notizie…" autocomplete="off" aria-label="Cerca fra le notizie">
+      <kbd class="search__kbd">/</kbd>
+    </div>
+
+    <div class="topbar__actions">
+      <button class="icon-btn" id="btn-refresh" title="Aggiorna (R)" aria-label="Aggiorna">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-layout" title="Cambia disposizione (V)" aria-label="Cambia disposizione">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h7v7H4zM13 5h7v4h-7zM13 11h7v8h-7zM4 14h7v5H4z"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-theme" title="Tema chiaro/scuro (T)" aria-label="Cambia tema">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+      </button>
+      <button class="icon-btn icon-btn--primary" id="btn-settings" title="Impostazioni (S)" aria-label="Impostazioni">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.2a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.9.4l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.4-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H10a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H23a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <nav class="filters" aria-label="Filtri">
+    <div class="filters__row">
+      <div class="chips" id="views" role="tablist">
+        <button class="chip chip--view is-active" data-view="all" role="tab">Tutte <span class="chip__count" data-count="all"></span></button>
+        <button class="chip chip--view" data-view="unread" role="tab">Da leggere <span class="chip__count" data-count="unread"></span></button>
+        <button class="chip chip--view" data-view="saved" role="tab">Salvate <span class="chip__count" data-count="saved"></span></button>
+      </div>
+      <span class="filters__sep" aria-hidden="true"></span>
+      <div class="chips chips--scroll" id="categories" aria-label="Categorie"></div>
+      <button class="chip chip--toggle" id="btn-filter-toggle" aria-pressed="true" title="Attiva/disattiva il dizionario (F)">
+        <span class="dot" aria-hidden="true"></span> <span id="filter-label">Filtro attivo</span>
+      </button>
+    </div>
+    <div class="filters__row filters__row--sub" id="sources-row">
+      <div class="chips chips--scroll" id="sources" aria-label="Fonti"></div>
+    </div>
+  </nav>
+
+  <div class="progress" id="progress" hidden><div class="progress__bar"></div></div>
+</header>
+
+<main id="main">
+  <section class="board" id="board" aria-live="polite"></section>
+  <div class="empty" id="empty" hidden></div>
+</main>
+
+<!-- Linguetta laterale: come lo sportello di buddybank, tiene le notizie nascoste
+     appena fuori dallo schermo, sempre recuperabili ma mai in mezzo ai piedi. -->
+<button class="edge-handle" id="edge-handle" aria-controls="vault" aria-expanded="false">
+  <span class="edge-handle__count" id="edge-count">0</span>
+  <span class="edge-handle__label">Nascoste</span>
+</button>
+
+<div class="scrim" id="scrim" hidden></div>
+
+<aside class="vault" id="vault" aria-hidden="true" aria-label="Notizie nascoste">
+  <div class="vault__grabber" aria-hidden="true"></div>
+  <header class="vault__head">
+    <div>
+      <h2 class="vault__title">Zona nascosta</h2>
+      <p class="vault__sub" id="vault-sub">Nessuna notizia filtrata</p>
+    </div>
+    <button class="icon-btn" id="vault-close" aria-label="Chiudi">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </header>
+  <div class="vault__stats" id="vault-stats"></div>
+  <div class="vault__list" id="vault-list"></div>
+</aside>
+
+<!-- Lettore articolo -->
+<dialog class="reader" id="reader" aria-label="Lettore">
+  <div class="reader__bar">
+    <button class="icon-btn" id="reader-close" aria-label="Chiudi lettore">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+    <div class="reader__bar-actions">
+      <button class="btn btn--ghost" id="reader-save">Salva</button>
+      <button class="btn btn--ghost" id="reader-share">Condividi</button>
+      <a class="btn btn--ghost" id="reader-open" target="_blank" rel="noopener">Originale ↗</a>
+    </div>
+  </div>
+  <article class="reader__body" id="reader-body"></article>
+</dialog>
+
+<!-- Impostazioni -->
+<dialog class="sheet" id="settings" aria-label="Impostazioni">
+  <header class="sheet__head">
+    <h2>Impostazioni</h2>
+    <button class="icon-btn" id="settings-close" aria-label="Chiudi">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </header>
+  <div class="tabs" role="tablist">
+    <button class="tab is-active" data-tab="dictionary" role="tab">Dizionario</button>
+    <button class="tab" data-tab="feeds" role="tab">Fonti</button>
+    <button class="tab" data-tab="look" role="tab">Aspetto</button>
+    <button class="tab" data-tab="data" role="tab">Dati</button>
+  </div>
+  <div class="sheet__body">
+    <section class="panel is-active" data-panel="dictionary"></section>
+    <section class="panel" data-panel="feeds"></section>
+    <section class="panel" data-panel="look"></section>
+    <section class="panel" data-panel="data"></section>
+  </div>
+</dialog>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script type="module" src="./assets/js/app.js"></script>
+</body>
+</html>
