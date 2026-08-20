@@ -9,7 +9,7 @@ costruite per spaventare o far indignare. Non le cancella: le sposta in una
 *zona nascosta* che resta a un dito di distanza, dietro una linguetta sul bordo
 dello schermo.
 
-![tipo di progetto](https://img.shields.io/badge/sito-statico-blue) ![niente backend](https://img.shields.io/badge/backend-nessuno-green)
+![tipo di progetto](https://img.shields.io/badge/sito-statico-blue) ![niente backend](https://img.shields.io/badge/backend-nessuno-green) ![licenza MIT](https://img.shields.io/badge/licenza-MIT-lightgrey)
 
 ---
 
@@ -176,3 +176,11 @@ relativi. Tutto il testo che finisce nelle schede è comunque sottoposto a escap
 - Raggruppamento della stessa notizia raccontata da testate diverse.
 - Dizionari condivisibili tramite link.
 - Filtro per fascia oraria («niente cronaca dopo le 22»).
+
+---
+
+## Licenza
+
+[MIT](LICENSE) — fanne quello che vuoi, basta che il testo della licenza resti
+allegato. I contenuti dei feed restano ovviamente delle rispettive testate:
+iNews li mostra e rimanda sempre all'articolo originale.
