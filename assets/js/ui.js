@@ -58,6 +58,7 @@ export function cardHTML(article, state) {
         <span class="card__source"><i style="background:${esc(color)}"></i>${esc(article.feedName)}</span>
         <span aria-hidden="true">·</span>
         <time datetime="${esc(article.publishedAt)}" title="${esc(fullDate(article.publishedAt))}">${esc(timeAgo(article.publishedAt))}</time>
+        ${article.lang && article.lang !== 'it' ? `<span class="card__lang" title="Articolo in lingua straniera">${esc(article.lang.toUpperCase())}</span>` : ''}
       </div>
       <h3 class="card__title"><button data-act="open">${esc(article.title)}</button></h3>
       ${article.summary ? `<p class="card__summary">${esc(article.summary)}</p>` : ''}

@@ -18,10 +18,13 @@ dello schermo.
 **Le notizie**
 - Legge un numero qualsiasi di feed **RSS, Atom o RDF** (13 testate italiane e
   internazionali già configurate, tutte modificabili).
-- **Navigazione a due livelli**: le categorie in alto (Generale, Esteri, Tech,
-  Economia, Sport, Scienza…), e sotto solo le testate di quella categoria. La
-  categoria di ogni fonte si cambia dalle impostazioni, e scrivendone una nuova
-  la si crea al volo.
+- **Navigazione a due livelli**: le categorie in alto (Politica, Cronaca, Esteri,
+  Economia, Tech, Scienza, Sport…), e sotto solo le testate di quella categoria.
+  Dove il feed marca i singoli articoli, la categoria è quella vera dell'articolo;
+  altrove si ricade su quella della fonte, modificabile dalle impostazioni.
+- **Filtro per lingua**: se nel carico ci sono notizie in più lingue compare un
+  selettore (Italiano / English) e le schede straniere portano un'etichetta.
+  Se leggi solo fonti italiane, il selettore non compare affatto.
 - Tre disposizioni: griglia con le immagini, elenco, oppure solo titoli.
 - **Lettore interno** che mostra il testo dell'articolo senza pubblicità né banner
   dei cookie; se il feed pubblica solo l'anteprima, prova a recuperare il testo
@@ -176,6 +179,45 @@ relativi. Tutto il testo che finisce nelle schede è comunque sottoposto a escap
 - Raggruppamento della stessa notizia raccontata da testate diverse.
 - Dizionari condivisibili tramite link.
 - Filtro per fascia oraria («niente cronaca dopo le 22»).
+
+---
+
+## Domande frequenti
+
+**Perché alcune notizie non hanno l'immagine?**
+Perché la testata non la mette nel feed. Su tredici fonti provate, sei
+pubblicano l'immagine (in tre formati diversi: `<enclosure>`, `<media:content>`,
+`<media:thumbnail>`) e sette non ne pubblicano nessuna — ANSA, Repubblica, Il
+Post e DDAY, per dire, non ne mandano mai. Per questo la GitHub Action, dopo aver
+letto i feed, apre le pagine degli articoli rimasti senza foto e ne legge il
+`og:image`: sull'ultimo giro ha recuperato 93 immagini su 99, portando la
+copertura dal 71% al 98%. È una cosa che si può fare solo lato server: dal
+browser sarebbero cento richieste in più a ogni apertura.
+
+**Perché alcune fonti si dividono per categoria e altre no?**
+Perché solo alcune marcano i singoli articoli. Repubblica manda `Cronaca`,
+`Politica`, `Economia`; Gazzetta arriva a venticinque etichette diverse
+(`Calcio`, `Tennis`, perfino `Bordo ring`); ANSA, Focus, Internazionale e BBC non
+ne mandano nessuna. iNews normalizza i vocabolari con la tabella
+`CATEGORY_ALIASES` in `config.js` — una decina di sezioni riconoscibili — e per
+le fonti mute usa la categoria assegnata alla testata. Se una fonte ti interessa
+divisa per sezioni e non manda etichette, la strada è iscriversi ai suoi feed di
+sezione: quasi tutte le testate ne hanno (è così che Il Post compare come
+«Italia» e «Mondo»).
+
+**Perché le notizie non si aggiornano?**
+Tre cause possibili, in ordine di frequenza:
+1. **La GitHub Action non è sul repository.** Se hai caricato i file
+   dall'interfaccia web di GitHub, sappi che salta silenziosamente tutto ciò che
+   inizia per punto — quindi niente `.github/`, niente `.nojekyll`. Verifica che
+   `.github/workflows/fetch-feeds.yml` ci sia, e in caso carica con `git push`.
+2. **L'Action non ha il permesso di scrivere.** Serve
+   *Settings → Actions → General → Workflow permissions → Read and write*.
+   Senza, il commit finale fallisce con un 403.
+3. **La cache era considerata fresca.** L'app usa `data/news.json` finché ha meno
+   di 75 minuti, poi passa alla rete. Il pulsante **Aggiorna** salta comunque la
+   cache e va sempre a interrogare i siti: il suo suggerimento dice quando e
+   come è arrivato l'ultimo carico.
 
 ---
 

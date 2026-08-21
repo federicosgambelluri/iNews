@@ -2,7 +2,7 @@ name: Aggiorna la cache delle notizie
 
 on:
   schedule:
-    - cron: '17 * * * *'   # ogni ora, al minuto 17
+    - cron: '7,37 * * * *'   # due volte all'ora
   workflow_dispatch:        # e a mano, dal tab Actions
   push:
     branches: [main]

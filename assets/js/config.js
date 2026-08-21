@@ -24,8 +24,14 @@ export const CORS_PROXIES = [
   { name: 'allorigins', build: (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}` },
   { name: 'codetabs',   build: (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}` },
   { name: 'corsproxy',  build: (url) => `https://corsproxy.io/?url=${encodeURIComponent(url)}` },
-  { name: 'thingproxy', build: (url) => `https://thingproxy.freeboard.io/fetch/${url}` }
+  { name: 'thingproxy', build: (url) => `https://thingproxy.freeboard.io/fetch/${url}` },
+  // Ultima spiaggia: non è un proxy ma un convertitore, restituisce JSON già
+  // normalizzato. Ha un limite di chiamate, per questo sta in fondo alla fila.
+  { name: 'rss2json', json: true, build: (url) => `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}&count=40` }
 ];
+
+/** Oltre questa età la cache statica è considerata vecchia e si passa alla rete. */
+export const STATIC_CACHE_MAX_AGE_MIN = 75;
 
 /** Cache statica generata da GitHub Actions (vedi tools/fetch-feeds.mjs). */
 export const STATIC_CACHE_URL = './data/news.json';
@@ -42,9 +48,36 @@ export const DEFAULT_FEEDS = [
   { id: 'internazionale',name: 'Internazionale',    url: 'https://www.internazionale.it/sitemaps/rss.xml',       category: 'Esteri',     enabled: false, color: '#7c3aed' },
   { id: 'gazzetta',      name: 'Gazzetta',          url: 'https://www.gazzetta.it/rss/home.xml',                 category: 'Sport',      enabled: false, color: '#ec4899' },
   { id: 'focus',         name: 'Focus',             url: 'https://www.focus.it/rss/scienza.rss',                 category: 'Scienza',    enabled: false, color: '#0891b2' },
-  { id: 'bbc-world',     name: 'BBC World',         url: 'https://feeds.bbci.co.uk/news/world/rss.xml',          category: 'Esteri',     enabled: false, color: '#b91c1c' },
-  { id: 'hn',            name: 'Hacker News',       url: 'https://hnrss.org/frontpage',                          category: 'Tech',       enabled: false, color: '#f59e0b' }
+  { id: 'bbc-world',     name: 'BBC World',         url: 'https://feeds.bbci.co.uk/news/world/rss.xml',          category: 'Esteri',     enabled: false, color: '#b91c1c', lang: 'en' },
+  { id: 'hn',            name: 'Hacker News',       url: 'https://hnrss.org/frontpage',                          category: 'Tech',       enabled: false, color: '#f59e0b', lang: 'en' }
 ];
+
+/**
+ * Alcuni feed marcano ogni articolo con uno o più <category>, ma ognuno usa il
+ * suo vocabolario ("Calcio", "Tennis", "Bordo ring"…). Questa tabella riporta
+ * le etichette più comuni a una decina di sezioni riconoscibili; quelle che non
+ * compaiono qui vengono ignorate e l'articolo eredita la categoria della fonte.
+ */
+export const CATEGORY_ALIASES = {
+  politica: 'Politica', governo: 'Politica', elezioni: 'Politica', politics: 'Politica',
+  cronaca: 'Cronaca', giustizia: 'Cronaca',
+  esteri: 'Esteri', mondo: 'Esteri', world: 'Esteri', europa: 'Esteri', internazionale: 'Esteri',
+  economia: 'Economia', finanza: 'Economia', business: 'Economia', lavoro: 'Economia',
+  mercati: 'Economia', imprese: 'Economia', economy: 'Economia',
+  tecnologia: 'Tech', tech: 'Tech', technology: 'Tech', internet: 'Tech', smartphone: 'Tech',
+  apple: 'Tech', android: 'Tech', google: 'Tech', microsoft: 'Tech', amazon: 'Tech',
+  gadget: 'Tech', games: 'Tech', videogiochi: 'Tech', security: 'Tech', sicurezza: 'Tech',
+  software: 'Tech', hardware: 'Tech', domotica: 'Tech', telefonia: 'Tech',
+  scienza: 'Scienza', science: 'Scienza', spazio: 'Scienza', ricerca: 'Scienza',
+  salute: 'Salute', medicina: 'Salute', health: 'Salute', benessere: 'Salute',
+  ambiente: 'Ambiente', clima: 'Ambiente', energia: 'Ambiente', environment: 'Ambiente',
+  cultura: 'Cultura', spettacoli: 'Cultura', cinema: 'Cultura', musica: 'Cultura',
+  libri: 'Cultura', arte: 'Cultura', tv: 'Cultura', culture: 'Cultura', moda: 'Cultura',
+  sport: 'Sport', calcio: 'Sport', tennis: 'Sport', volley: 'Sport', basket: 'Sport',
+  ciclismo: 'Sport', atletica: 'Sport', formula: 'Sport', motogp: 'Sport', coppe: 'Sport',
+  auto: 'Motori', motori: 'Motori', moto: 'Motori',
+  scuola: 'Scuola', universita: 'Scuola'
+};
 
 /**
  * Dizionario base: 50 voci pensate per smorzare rage-bait, cronaca nera

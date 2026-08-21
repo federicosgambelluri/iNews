@@ -31,10 +31,13 @@ const state = {
   view: 'all',
   category: null,
   source: null,
+  lang: null,
   query: '',
   vaultTerm: null,
   loading: false,
-  lastSync: null
+  lastSync: null,
+  lastVia: null,
+  staticAge: null
 };
 
 /* ------------------------------------------------------------- avvio */
@@ -152,6 +155,7 @@ function currentList() {
     if (state.view === 'all' && state.settings.hideRead && state.read.has(a.id) && !state.saved.has(a.id)) return false;
     if (state.category && (a.category || 'Generale') !== state.category) return false;
     if (state.source && a.feedId !== state.source) return false;
+    if (state.lang && (a.lang || 'it') !== state.lang) return false;
     if (q && !(`${a.title} ${a.summary} ${a.feedName}`.toLowerCase().includes(q))) return false;
     return true;
   });
@@ -159,21 +163,28 @@ function currentList() {
 
 /* ------------------------------------------------------------ scarico */
 
-async function refresh({ silent = false } = {}) {
+async function refresh({ silent = false, preferLive = false } = {}) {
   if (state.loading) return;
   state.loading = true;
   $('#progress').hidden = false;
   $('#btn-refresh').classList.add('is-spinning');
 
-  const { articles, problems } = await loadAll(state.feeds, {
+  const known = new Set(state.articles.map((a) => a.id));
+
+  const { articles, problems, staticAge, via } = await loadAll(state.feeds, {
     customProxies: state.settings.customProxies,
-    strategy: state.settings.sourceStrategy
+    strategy: state.settings.sourceStrategy,
+    preferLive
   });
 
   state.problems = problems;
+  state.staticAge = staticAge;
+  let fresh = 0;
   if (articles.length) {
+    fresh = articles.filter((a) => !known.has(a.id)).length;
     state.articles = articles;
     state.lastSync = Date.now();
+    state.lastVia = via;
     store.save('feedCache', { at: state.lastSync, articles: articles.slice(0, 400) });
   }
 
@@ -183,6 +194,14 @@ async function refresh({ silent = false } = {}) {
 
   partition();
   render();
+  updateSyncLabel();
+
+  // Un aggiornamento a mano deve sempre dire com'è andata: senza un riscontro
+  // sembra che il pulsante non faccia niente.
+  if (!silent && articles.length) {
+    const origine = via === 'cache' ? ' (dalla cache del sito)' : '';
+    toast(fresh ? `${fresh} ${fresh === 1 ? 'notizia nuova' : 'notizie nuove'}${origine}` : `Nessuna novità${origine}`);
+  }
 
   if (!silent && problems.length) {
     toast(`${problems.length} ${problems.length === 1 ? 'fonte non raggiungibile' : 'fonti non raggiungibili'}`, {
@@ -195,6 +214,17 @@ async function refresh({ silent = false } = {}) {
 }
 
 /* ---------------------------------------------------------- rendering */
+
+/** Il pulsante Aggiorna racconta da solo quando e come è arrivato l'ultimo carico. */
+function updateSyncLabel() {
+  const btn = $('#btn-refresh');
+  if (!state.lastSync) { btn.title = 'Aggiorna (R)'; return; }
+  const come = state.lastVia === 'cache' ? 'dalla cache del sito'
+    : state.lastVia === 'misto' ? 'da cache e rete'
+    : 'dai siti, in diretta';
+  const eta = state.staticAge !== null ? ` · cache del sito: ${timeAgo(Date.now() - state.staticAge)}` : '';
+  btn.title = `Aggiornato ${timeAgo(state.lastSync)} ${come}${eta} — clicca per riscaricare tutto (R)`;
+}
 
 function render() {
   renderChips();
@@ -251,7 +281,25 @@ function renderChips() {
         <span class="chip__count">${used.get(f.id)}</span>
       </button>`).join('');
 
-  $('#sources-row').hidden = used.size < 2;
+  /* Lingua: compare solo se nel carico ci sono davvero notizie in più lingue. */
+  const langCounts = new Map();
+  for (const a of state.visible) {
+    if (state.category && (a.category || 'Generale') !== state.category) continue;
+    const lang = a.lang || 'it';
+    langCounts.set(lang, (langCounts.get(lang) || 0) + 1);
+  }
+  const LANG_NAMES = { it: 'Italiano', en: 'English' };
+  if (state.lang && !langCounts.has(state.lang)) state.lang = null;
+
+  $('#languages').innerHTML = langCounts.size < 2 ? '' : [
+    `<button class="chip chip--lang ${state.lang ? '' : 'is-active'}" data-lang="">Tutte le lingue</button>`,
+    ...[...langCounts.entries()].sort((a, b) => b[1] - a[1]).map(([lang, n]) => `
+      <button class="chip chip--lang ${state.lang === lang ? 'is-active' : ''}" data-lang="${esc(lang)}">
+        ${esc(LANG_NAMES[lang] || lang.toUpperCase())}<span class="chip__count">${n}</span>
+      </button>`)
+  ].join('');
+
+  $('#sources-row').hidden = used.size < 2 && langCounts.size < 2;
   $('#sources').innerHTML = state.source
     ? `<button class="chip chip--source is-active" data-source="">Tutte le fonti ✕</button>` + chips
     : chips;
@@ -275,8 +323,9 @@ function renderBoard() {
       empty.innerHTML = emptyHTML({ title: 'Nessun risultato', text: `Nessuna notizia visibile contiene «${state.query}». Potrebbe essere finita nella zona nascosta.`, action: { act: 'open-vault', label: 'Apri la zona nascosta' } });
     } else if (state.view === 'saved') {
       empty.innerHTML = emptyHTML({ title: 'Non hai ancora salvato niente', text: 'Il segnalibro sulle schede mette da parte gli articoli da leggere con calma.' });
-    } else if (state.category || state.source) {
-      const where = state.source ? state.feeds.find((f) => f.id === state.source)?.name : state.category;
+    } else if (state.category || state.source || state.lang) {
+      const where = state.source ? state.feeds.find((f) => f.id === state.source)?.name
+        : state.category || (state.lang === 'en' ? 'English' : 'Italiano');
       empty.innerHTML = emptyHTML({
         title: 'Niente in questa sezione',
         text: `Nessuna notizia da mostrare in «${where}» con i filtri attuali.`,
@@ -485,7 +534,7 @@ function wireEvents() {
     renderBoard();
   });
 
-  $('#btn-refresh').addEventListener('click', () => refresh());
+  $('#btn-refresh').addEventListener('click', () => refresh({ preferLive: true }));
   $('#btn-theme').addEventListener('click', () => {
     const order = ['light', 'dark'];
     const current = document.documentElement.dataset.theme;
@@ -527,6 +576,14 @@ function wireEvents() {
     renderBoard();
   });
 
+  $('#languages').addEventListener('click', (e) => {
+    const chip = e.target.closest('[data-lang]');
+    if (!chip) return;
+    state.lang = chip.dataset.lang || null;
+    renderChips();
+    renderBoard();
+  });
+
   $('#sources').addEventListener('click', (e) => {
     const chip = e.target.closest('[data-source]');
     if (!chip) return;
@@ -562,6 +619,7 @@ function wireEvents() {
     if (act === 'clear-filters') {
       state.category = null;
       state.source = null;
+      state.lang = null;
       renderChips();
       renderBoard();
     }
@@ -830,7 +888,7 @@ function wireEvents() {
 
     switch (e.key.toLowerCase()) {
       case '/': e.preventDefault(); $('#search').focus(); break;
-      case 'r': refresh(); break;
+      case 'r': refresh({ preferLive: true }); break;
       case 't': $('#btn-theme').click(); break;
       case 'v': $('#btn-layout').click(); break;
       case 's': e.preventDefault(); openSettings(); break;

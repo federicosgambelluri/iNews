@@ -167,6 +167,17 @@ mark { background: var(--hidden-soft); color: inherit; border-radius: 3px; paddi
 .chip--source.is-active { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
 .chip--all { font-weight: 600; }
 
+/* Lingua: gruppetto compatto in fondo alla riga delle fonti. */
+#languages { margin-left: auto; flex: 0 0 auto; padding-left: 10px; gap: 3px; }
+#languages:empty { display: none; }
+.chip--lang { padding: 5px 10px; font-size: 12.2px; background: transparent; border-color: transparent; color: var(--muted); }
+.chip--lang:hover { background: var(--surface-2); border-color: transparent; }
+.chip--lang.is-active { background: var(--text); color: var(--bg); border-color: transparent; }
+.card__lang {
+  padding: 1px 5px; border-radius: 4px; font-size: 10px; font-weight: 700; letter-spacing: .04em;
+  background: var(--surface-3); color: var(--muted);
+}
+
 .chips { display: flex; gap: 6px; align-items: center; }
 .chips--scroll {
   flex: 1; overflow-x: auto; scrollbar-width: none;
