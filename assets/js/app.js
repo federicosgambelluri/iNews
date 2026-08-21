@@ -258,7 +258,7 @@ function renderChips() {
   for (const cat of catCounts.keys()) if (!orderedCats.includes(cat)) orderedCats.push(cat);
 
   $('#categories').innerHTML = orderedCats.length < 2 ? '' : [
-    `<button class="chip chip--all ${state.category ? '' : 'is-active'}" data-category="">Tutto <span class="chip__count">${state.visible.length}</span></button>`,
+    `<button class="chip chip--all ${state.category ? '' : 'is-active'}" data-category="">Tutte le sezioni <span class="chip__count">${state.visible.length}</span></button>`,
     ...orderedCats.map((cat) => `
       <button class="chip ${state.category === cat ? 'is-active' : ''}" data-category="${esc(cat)}">
         ${esc(cat)}<span class="chip__count">${catCounts.get(cat)}</span>
@@ -292,14 +292,16 @@ function renderChips() {
   if (state.lang && !langCounts.has(state.lang)) state.lang = null;
 
   $('#languages').innerHTML = langCounts.size < 2 ? '' : [
-    `<button class="chip chip--lang ${state.lang ? '' : 'is-active'}" data-lang="">Tutte le lingue</button>`,
+    `<button class="${state.lang ? '' : 'is-active'}" data-lang="">Tutte</button>`,
     ...[...langCounts.entries()].sort((a, b) => b[1] - a[1]).map(([lang, n]) => `
-      <button class="chip chip--lang ${state.lang === lang ? 'is-active' : ''}" data-lang="${esc(lang)}">
+      <button class="${state.lang === lang ? 'is-active' : ''}" data-lang="${esc(lang)}">
         ${esc(LANG_NAMES[lang] || lang.toUpperCase())}<span class="chip__count">${n}</span>
       </button>`)
   ].join('');
 
-  $('#sources-row').hidden = used.size < 2 && langCounts.size < 2;
+  const mostraFonti = used.size >= 2;
+  $('.filters__label').hidden = !mostraFonti;
+  $('#sources-row').hidden = !mostraFonti && langCounts.size < 2;
   $('#sources').innerHTML = state.source
     ? `<button class="chip chip--source is-active" data-source="">Tutte le fonti ✕</button>` + chips
     : chips;
@@ -559,7 +561,7 @@ function wireEvents() {
     const chip = e.target.closest('[data-view]');
     if (!chip) return;
     state.view = chip.dataset.view;
-    $$('.chip--view').forEach((c) => c.classList.toggle('is-active', c === chip));
+    $$('#views [data-view]').forEach((c) => c.classList.toggle('is-active', c === chip));
     renderBoard();
   });
 

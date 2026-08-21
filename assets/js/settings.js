@@ -30,9 +30,10 @@ export function dictionaryPanel({ dictionary, whitelist, stats }) {
         <span class="term__word">${esc(entry.term)}
           <small>${stats[entry.term] ? `ha nascosto ${stats[entry.term]} notizie` : 'nessuna corrispondenza al momento'}</small>
         </span>
-        <select data-act="scope-term" title="Dove cercare la parola">
+        <select data-act="scope-term" title="Dove cercare la parola: basta una corrispondenza in uno dei punti indicati">
+          <option value="both" ${!entry.scope || entry.scope === 'both' ? 'selected' : ''}>titolo o testo</option>
           <option value="title" ${entry.scope === 'title' ? 'selected' : ''}>solo titolo</option>
-          <option value="both" ${entry.scope !== 'title' ? 'selected' : ''}>titolo + testo</option>
+          <option value="description" ${entry.scope === 'description' ? 'selected' : ''}>solo testo</option>
         </select>
         <select data-act="mode-term" title="Quanto è rigida la corrispondenza">
           <option value="smart" ${entry.mode !== 'exact' ? 'selected' : ''}>flessibile</option>
@@ -48,7 +49,9 @@ export function dictionaryPanel({ dictionary, whitelist, stats }) {
       <button class="btn btn--primary" type="submit">${ICONS.plus} Aggiungi</button>
     </form>
     <p class="hint">
-      Le parole vengono cercate nel titolo e, se vuoi, anche nella descrizione. La corrispondenza
+      Ogni voce dice <b>dove</b> cercare: <i>titolo o testo</i> (l\u2019impostazione di partenza)
+      nasconde la notizia se la parola compare anche in uno solo dei due, <i>solo titolo</i>
+      ignora la descrizione, <i>solo testo</i> ignora il titolo. La corrispondenza
       <b>flessibile</b> copre da sola plurali e femminili (<code>immigrato</code> intercetta anche
       <i>immigrata</i>, <i>immigrati</i>); usa <code>*</code> per allargare ancora
       (<code>immigrat*</code> prende pure <i>immigrazione</i>) oppure la modalità <b>esatta</b> per

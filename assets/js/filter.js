@@ -93,11 +93,17 @@ export function evaluate(article, { dictionary = [], whitelist = [], defaultScop
 
   for (const entry of dictionary) {
     const scope = entry.scope || defaultScope;
-    const hit = findIn(article.title, entry);
-    if (hit) {
-      return { hidden: true, reason: { term: entry.term, category: entry.category, field: 'title', excerpt: hit.excerpt } };
+
+    // L'ambito è sempre un OR: basta una corrispondenza, in uno dei punti
+    // guardati, perché la notizia finisca nella zona nascosta.
+    if (scope !== 'description') {
+      const hit = findIn(article.title, entry);
+      if (hit) {
+        return { hidden: true, reason: { term: entry.term, category: entry.category, field: 'title', excerpt: hit.excerpt } };
+      }
     }
-    if (scope === 'both' || scope === 'description') {
+
+    if (scope !== 'title') {
       const hitDesc = findIn(article.summary, entry);
       if (hitDesc) {
         return { hidden: true, reason: { term: entry.term, category: entry.category, field: 'summary', excerpt: hitDesc.excerpt } };

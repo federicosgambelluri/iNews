@@ -27,8 +27,9 @@ dello schermo.
   Se leggi solo fonti italiane, il selettore non compare affatto.
 - Tre disposizioni: griglia con le immagini, elenco, oppure solo titoli.
 - **Lettore interno** che mostra il testo dell'articolo senza pubblicità né banner
-  dei cookie; se il feed pubblica solo l'anteprima, prova a recuperare il testo
-  completo dalla pagina originale.
+  dei cookie. Il testo lo estrae la GitHub Action, insieme alle immagini: si apre
+  subito, senza passare da nessun servizio esterno. Per gli articoli fuori dalla
+  cache (le fonti aggiunte da te) resta il recupero al volo dalla pagina originale.
 - Ricerca, filtro per testata, *salvate*, *da leggere*, segna come letto.
 - Doppioni tra testate diverse eliminati automaticamente.
 
@@ -36,7 +37,8 @@ dello schermo.
 - Un **dizionario personalizzabile** di 50 voci di partenza, divise per famiglia
   (polarizzazione, cronaca nera, allarmismo, guerra, salute, clickbait).
 - Ogni voce si può accendere, spegnere, cancellare o riscrivere. Per ognuna decidi:
-  - **dove cercare**: solo nel titolo, oppure anche nella descrizione;
+  - **dove cercare**: *titolo o testo* (l'impostazione di partenza: basta che la
+    parola compaia in uno dei due), *solo titolo*, oppure *solo testo*;
   - **quanto essere rigidi**: *flessibile* copre plurali e femminili italiani
     (`immigrato` intercetta anche *immigrata* e *immigrati*), *esatta* prende solo
     la parola scritta. Con `*` allarghi ancora: `immigrat*` prende pure
@@ -183,6 +185,15 @@ relativi. Tutto il testo che finisce nelle schede è comunque sottoposto a escap
 ---
 
 ## Domande frequenti
+
+**Perché l'articolo non si apre nel lettore?**
+Se resta su «Sto recuperando il testo completo», vuol dire che si è finiti sul
+percorso di riserva — quello che passa dai proxy pubblici, che sono spesso
+irraggiungibili. Succede solo per gli articoli assenti da `data/news.json`: per
+tutti gli altri il testo è già dentro la cache, estratto dalla GitHub Action, e
+compare all'istante. Se ti capita spesso, vuol dire che la cache è vecchia o che
+la fonte l'hai aggiunta tu: in quel caso il pulsante «Apri l'originale» è lì
+apposta.
 
 **Perché alcune notizie non hanno l'immagine?**
 Perché la testata non la mette nel feed. Su tredici fonti provate, sei

@@ -41,6 +41,10 @@
     </div>
 
     <div class="topbar__actions">
+      <button class="pill-toggle" id="btn-filter-toggle" aria-pressed="true" title="Attiva/disattiva il dizionario (F)">
+        <svg class="pill-toggle__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4 2v-8Z"/></svg>
+        <span class="dot" aria-hidden="true"></span> <span id="filter-label">Filtro attivo</span>
+      </button>
       <button class="icon-btn" id="btn-refresh" title="Aggiorna (R)" aria-label="Aggiorna">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></svg>
       </button>
@@ -58,20 +62,17 @@
 
   <nav class="filters" aria-label="Filtri">
     <div class="filters__row">
-      <div class="chips" id="views" role="tablist">
-        <button class="chip chip--view is-active" data-view="all" role="tab">Tutte <span class="chip__count" data-count="all"></span></button>
-        <button class="chip chip--view" data-view="unread" role="tab">Da leggere <span class="chip__count" data-count="unread"></span></button>
-        <button class="chip chip--view" data-view="saved" role="tab">Salvate <span class="chip__count" data-count="saved"></span></button>
+      <div class="segmented" id="views" role="tablist" aria-label="Cosa mostrare">
+        <button class="is-active" data-view="all" role="tab">Tutte</button>
+        <button data-view="unread" role="tab">Da leggere <span class="chip__count" data-count="unread"></span></button>
+        <button data-view="saved" role="tab">Salvate <span class="chip__count" data-count="saved"></span></button>
       </div>
-      <span class="filters__sep" aria-hidden="true"></span>
-      <div class="chips chips--scroll" id="categories" aria-label="Categorie"></div>
-      <button class="chip chip--toggle" id="btn-filter-toggle" aria-pressed="true" title="Attiva/disattiva il dizionario (F)">
-        <span class="dot" aria-hidden="true"></span> <span id="filter-label">Filtro attivo</span>
-      </button>
+      <div class="chips chips--scroll" id="categories" aria-label="Sezioni"></div>
     </div>
     <div class="filters__row filters__row--sub" id="sources-row">
+      <span class="filters__label">Fonti</span>
       <div class="chips chips--scroll" id="sources" aria-label="Fonti"></div>
-      <div class="chips" id="languages" aria-label="Lingua"></div>
+      <div class="segmented segmented--sm" id="languages" aria-label="Lingua"></div>
     </div>
   </nav>
 

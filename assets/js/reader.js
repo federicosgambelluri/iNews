@@ -4,7 +4,7 @@
  * (sempre passando dai proxy CORS).
  */
 
-import { CORS_PROXIES } from './config.js';
+import { fetchViaProxy } from './feeds.js';
 
 const ALLOWED = new Set([
   'p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 'ul', 'ol', 'li', 'blockquote',
@@ -100,34 +100,30 @@ function pickArticleNode(doc) {
 
 /**
  * Prova a scaricare ed estrarre il testo completo dell'articolo.
+ *
+ * È la seconda scelta: quasi sempre il testo arriva già pronto da
+ * data/news.json, perché lo estrae la GitHub Action lato server. Qui si finisce
+ * solo per gli articoli aggiunti dall'utente o assenti dalla cache, e allora
+ * tocca passare dai proxy — che possono benissimo essere tutti giù.
+ *
  * @returns {Promise<{ok:boolean, html?:string, error?:string}>}
  */
-export async function fetchFullArticle(url, { customProxies = [], timeout = 14000 } = {}) {
-  const list = [
-    ...customProxies.map((tpl) => ({ name: 'custom', build: (u) => tpl.replace('{url}', encodeURIComponent(u)) })),
-    ...CORS_PROXIES
-  ];
-
-  for (const proxy of list) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeout);
-    try {
-      const res = await fetch(proxy.build(url), { signal: controller.signal });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const html = await res.text();
-      const doc = new DOMParser().parseFromString(html, 'text/html');
-
-      doc.querySelectorAll('script, style, noscript, aside, nav, footer, header, form, .related, .newsletter, .paywall').forEach((n) => n.remove());
+export async function fetchFullArticle(url, { customProxies = [], timeout = 9000 } = {}) {
+  const result = await fetchViaProxy(url, {
+    customProxies,
+    timeout,
+    validate: ({ body }) => {
+      const doc = new DOMParser().parseFromString(body, 'text/html');
+      doc.querySelectorAll('script, style, noscript, aside, nav, footer, header, form, .related, .newsletter, .paywall')
+        .forEach((n) => n.remove());
 
       const node = pickArticleNode(doc);
-      if (!node || textLength(node) < 400) throw new Error('Testo non individuato');
-
-      return { ok: true, html: sanitize(node.innerHTML, url) };
-    } catch (err) {
-      // provo il proxy successivo
-    } finally {
-      clearTimeout(timer);
+      if (!node || textLength(node) < 400) throw new Error('testo non individuato');
+      return { html: sanitize(node.innerHTML, url) };
     }
-  }
-  return { ok: false, error: 'Non sono riuscito a recuperare il testo completo.' };
+  });
+
+  return result.ok
+    ? { ok: true, html: result.html }
+    : { ok: false, error: 'Il testo completo non è disponibile: i servizi che fanno da ponte verso il sito non rispondono.' };
 }

@@ -27,7 +27,17 @@ const decodeEntities = (s = '') =>
    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))
    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
    .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
-   .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');
+   .replace(/&nbsp;/g, ' ')
+   .replace(/&(rsquo|lsquo|apos);/g, "'")
+   .replace(/&(rdquo|ldquo|quot);/g, '"')
+   .replace(/&(mdash|ndash);/g, '-')
+   .replace(/&hellip;/g, '...')
+   .replace(/&(laquo);/g, '\u00ab').replace(/&(raquo);/g, '\u00bb')
+   .replace(/&(egrave);/g, '\u00e8').replace(/&(eacute);/g, '\u00e9')
+   .replace(/&(agrave);/g, '\u00e0').replace(/&(ograve);/g, '\u00f2')
+   .replace(/&(igrave);/g, '\u00ec').replace(/&(ugrave);/g, '\u00f9')
+   .replace(/&euro;/g, '\u20ac').replace(/&deg;/g, '\u00b0')
+   .replace(/&amp;/g, '&');
 
 const stripTags = (s = '') => decodeEntities(s).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -127,39 +137,133 @@ async function fetchFeed(feed) {
   }
 }
 
+const MAX_TEXT = 9000;      // caratteri di testo tenuti per articolo
+const ENRICH_NEWEST = 220;  // quanti articoli visitare, dal più recente
+
+// Righe che compaiono in ogni pagina e non c'entrano con l'articolo.
+const BOILERPLATE = /(cookie|consentless|informativa privacy|condizioni generali|abbonamen|iscriviti alla newsletter|riproduzione riservata|accetta|pubblicit|segui .{0,20}su (facebook|twitter|whatsapp)|leggi anche|tutti i diritti)/i;
+
+/** Dal tag di apertura al suo tag di chiusura, contando gli annidamenti. */
+function sliceElement(html, from, tagName) {
+  const open = new RegExp(`<${tagName}\\b[^>]*>`, 'gi');
+  const close = new RegExp(`</${tagName}\\s*>`, 'gi');
+  open.lastIndex = from;
+  const first = open.exec(html);
+  if (!first) return '';
+
+  let depth = 1;
+  let cursor = open.lastIndex;
+  while (depth > 0 && cursor < html.length) {
+    open.lastIndex = cursor;
+    close.lastIndex = cursor;
+    const nextOpen = open.exec(html);
+    const nextClose = close.exec(html);
+    if (!nextClose) return html.slice(first.index, Math.min(html.length, first.index + 300000));
+    if (nextOpen && nextOpen.index < nextClose.index) { depth++; cursor = open.lastIndex; }
+    else { depth--; cursor = close.lastIndex; }
+  }
+  return html.slice(first.index, cursor);
+}
+
+/** Paragrafi utili di un frammento, con il loro peso complessivo. */
+function paragraphsOf(fragment) {
+  const out = [];
+  let total = 0;
+  for (const m of fragment.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)) {
+    const text = stripTags(m[1]);
+    if (text.length < 60) continue;          // didascalie, firme, briciole di menu
+    if (BOILERPLATE.test(text)) continue;    // cookie, abbonamenti, "leggi anche"
+    out.push(text);
+    total += text.length;
+    if (total > MAX_TEXT) break;
+  }
+  return { paragraphs: out, total };
+}
+
 /**
- * Molti feed (ANSA, Repubblica, Il Post, DDAY…) non pubblicano nessuna immagine.
- * Qui giriamo sulla pagina dell'articolo e leggiamo og:image: una richiesta in
- * più per articolo, che nel browser sarebbe insostenibile ma su un runner di
- * GitHub costa qualche secondo una volta ogni mezz'ora.
+ * Testo dell'articolo, in HTML minimo.
+ * Prima cerca il contenitore che *è* l'articolo (<article>, articleBody,
+ * entry-content…): prendere tutti i <p> della pagina significherebbe portarsi
+ * dietro l'informativa sui cookie, come è successo nella prima versione.
  */
-async function enrichImages(items) {
-  const missing = items.filter((a) => !a.image && a.link);
+function extractText(html) {
+  const page = html
+    .replace(/<(script|style|noscript|nav|aside|footer|header|form|figure|iframe)\b[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ');
+
+  const candidates = [];
+  const markers = [
+    /<article\b[^>]*>/i,
+    /<div\b[^>]*itemprop=["']articleBody["'][^>]*>/i,
+    /<div\b[^>]*class=["'][^"']*(?:article-?body|articlebody|entry-content|post-content|story-?body|content__body|testo|article__content)[^"']*["'][^>]*>/i,
+    /<main\b[^>]*>/i
+  ];
+
+  for (const marker of markers) {
+    const hit = marker.exec(page);
+    if (!hit) continue;
+    const tag = /^<(\w+)/.exec(hit[0])[1];
+    const fragment = sliceElement(page, hit.index, tag);
+    if (fragment) candidates.push(fragment);
+  }
+  candidates.push(page);   // ultima risorsa: tutta la pagina
+
+  let best = { paragraphs: [], total: 0 };
+  for (const fragment of candidates) {
+    const found = paragraphsOf(fragment);
+    // Il primo contenitore che dà un articolo vero vince: è il più specifico.
+    if (found.total >= 500) { best = found; break; }
+    if (found.total > best.total) best = found;
+  }
+
+  if (best.total < 400) return '';
+  const escape = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return best.paragraphs.map((t) => `<p>${escape(t)}</p>`).join('');
+}
+
+/**
+ * Visita la pagina di ogni articolo e ne ricava due cose che il feed spesso non
+ * dà: l'immagine di apertura (og:image) e il testo completo. Nel browser
+ * sarebbero centinaia di richieste attraverso proxy pubblici inaffidabili; qui
+ * è una passata sola, ogni mezz'ora, su una macchina di GitHub.
+ */
+async function enrich(items) {
+  const targets = items.slice(0, ENRICH_NEWEST).filter((a) => a.link);
   let index = 0;
-  let found = 0;
+  let images = 0;
+  let texts = 0;
 
   const worker = async () => {
-    while (index < missing.length) {
-      const article = missing[index++];
+    while (index < targets.length) {
+      const article = targets[index++];
+      const serveImmagine = !article.image;
+      const serveTesto = stripTags(article.content || '').length < 900;
+      if (!serveImmagine && !serveTesto) continue;
+
       try {
         const res = await fetch(article.link, { headers: UA, signal: AbortSignal.timeout(12000) });
         if (!res.ok) continue;
-        const head = (await res.text()).slice(0, 250000);
-        const m =
-          /<meta[^>]+(?:property|name)=["'](?:og:image(?::secure_url)?|twitter:image(?::src)?)["'][^>]*\scontent=["']([^"']+)["']/i.exec(head) ||
-          /<meta[^>]+content=["']([^"']+)["'][^>]*\s(?:property|name)=["'](?:og:image|twitter:image)["']/i.exec(head);
-        if (m && m[1]) {
-          article.image = new URL(decodeEntities(m[1]), article.link).href;
-          found++;
+        const page = (await res.text()).slice(0, 400000);
+
+        if (serveImmagine) {
+          const m =
+            /<meta[^>]+(?:property|name)=["'](?:og:image(?::secure_url)?|twitter:image(?::src)?)["'][^>]*\scontent=["']([^"']+)["']/i.exec(page) ||
+            /<meta[^>]+content=["']([^"']+)["'][^>]*\s(?:property|name)=["'](?:og:image|twitter:image)["']/i.exec(page);
+          if (m && m[1]) { article.image = new URL(decodeEntities(m[1]), article.link).href; images++; }
+        }
+
+        if (serveTesto) {
+          const text = extractText(page);
+          if (text) { article.content = text; article.fullText = true; texts++; }
         }
       } catch {
-        // pagina irraggiungibile: l'articolo resta senza immagine, pazienza
+        // pagina irraggiungibile: restano il titolo e il sommario del feed
       }
     }
   };
 
   await Promise.all(Array.from({ length: IMAGE_CONCURRENCY }, worker));
-  console.log(`\nimmagini recuperate da og:image: ${found} su ${missing.length} articoli senza`);
+  console.log(`\narricchimento su ${targets.length} articoli: ${images} immagini, ${texts} testi completi`);
 }
 
 const all = (await Promise.all(DEFAULT_FEEDS.map(fetchFeed))).flat();
@@ -173,7 +277,7 @@ const items = all.filter((a) => {
   return true;
 }).sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
 
-await enrichImages(items);
+await enrich(items);
 
 await mkdir(new URL('../data/', import.meta.url), { recursive: true });
 await writeFile(

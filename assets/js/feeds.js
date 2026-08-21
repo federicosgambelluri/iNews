@@ -176,17 +176,16 @@ function proxies(customProxies = []) {
  */
 let preferredProxy = null;
 
-async function attempt(proxy, feed, timeout) {
+/** Un solo tentativo: scarica il testo grezzo attraverso un proxy. */
+async function attemptRaw(proxy, url, timeout) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
   try {
-    const res = await fetch(proxy.build(feed.url), { signal: controller.signal, cache: 'no-store' });
+    const res = await fetch(proxy.build(url), { signal: controller.signal, cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const body = await res.text();
     if (!body || body.length < 80) throw new Error('risposta vuota');
-    const items = proxy.json ? parseJsonFeed(JSON.parse(body), feed) : parseFeed(body, feed);
-    if (!items.length) throw new Error('nessun articolo');
-    return { ok: true, items, via: proxy.name, proxy };
+    return { ok: true, body, proxy, via: proxy.name };
   } catch (err) {
     return { ok: false, error: `${proxy.name}: ${err.name === 'AbortError' ? 'tempo scaduto' : err.message}` };
   } finally {
@@ -194,33 +193,53 @@ async function attempt(proxy, feed, timeout) {
   }
 }
 
-/** Scarica un singolo feed. */
-export async function fetchFeed(feed, { customProxies = [], timeout = 9000 } = {}) {
+/**
+ * Scarica un indirizzo qualsiasi passando dai proxy.
+ * Usato sia per i feed sia per il testo completo degli articoli: la gara si fa
+ * una volta sola e il vincitore resta in memoria per tutte le chiamate dopo.
+ *
+ * @param {(result:{body:string,proxy:object}) => any} validate
+ *        Trasforma la risposta e, se non va bene, lancia: quel proxy perde.
+ */
+export async function fetchViaProxy(url, { customProxies = [], timeout = 9000, validate } = {}) {
   const list = proxies(customProxies);
-  if (!list.length) return { ok: false, items: [], error: 'nessun proxy configurato' };
+  if (!list.length) return { ok: false, error: 'nessun proxy configurato' };
+
+  const run = async (proxy) => {
+    const raw = await attemptRaw(proxy, url, timeout);
+    if (!raw.ok) throw new Error(raw.error);
+    return validate ? { ok: true, ...validate(raw), via: proxy.name, proxy } : { ...raw };
+  };
 
   if (preferredProxy && list.includes(preferredProxy)) {
-    const first = await attempt(preferredProxy, feed, timeout);
-    if (first.ok) return first;
-    preferredProxy = null;   // è caduto: si riapre la gara
+    try { return await run(preferredProxy); } catch { preferredProxy = null; }
   }
 
   const errors = [];
   try {
-    const winner = await Promise.any(
-      list.map((proxy) =>
-        attempt(proxy, feed, timeout).then((r) => {
-          if (r.ok) return r;
-          errors.push(r.error);
-          throw new Error(r.error);
-        })
-      )
-    );
+    const winner = await Promise.any(list.map((proxy) => run(proxy).catch((err) => {
+      errors.push(err.message);
+      throw err;
+    })));
     preferredProxy = winner.proxy;
     return winner;
   } catch {
-    return { ok: false, items: [], error: errors.join(' · ') || 'nessun proxy raggiungibile' };
+    return { ok: false, error: errors.join(' · ') || 'nessun proxy raggiungibile' };
   }
+}
+
+/** Scarica un singolo feed. */
+export async function fetchFeed(feed, { customProxies = [], timeout = 9000 } = {}) {
+  const result = await fetchViaProxy(feed.url, {
+    customProxies,
+    timeout,
+    validate: ({ body, proxy }) => {
+      const items = proxy.json ? parseJsonFeed(JSON.parse(body), feed) : parseFeed(body, feed);
+      if (!items.length) throw new Error('nessun articolo');
+      return { items };
+    }
+  });
+  return result.ok ? result : { ok: false, items: [], error: result.error };
 }
 
 /** Legge la cache statica prodotta dalla GitHub Action, se esiste. */
